@@ -1,8 +1,13 @@
-import { Tabs } from "expo-router";
-import { View, TouchableOpacity, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { useEffect } from "react";
+import { Stack, router } from "expo-router";
 import { SQLiteProvider } from "expo-sqlite";
+import * as Notifications from "expo-notifications";
 import { NotesProvider } from "../context/NotesContext";
+import { ThemeProvider } from "../context/ThemeContext";
+import {
+  setupNotificationChannel,
+  requestNotificationPermissions,
+} from "../utils/notifications";
 
 async function initDb(db) {
   await db.execAsync(`
@@ -12,99 +17,35 @@ async function initDb(db) {
       content TEXT,
       createdAt INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
   `);
+  try { await db.execAsync("ALTER TABLE notes ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'"); } catch (_) {}
+  try { await db.execAsync("ALTER TABLE notes ADD COLUMN reminder INTEGER DEFAULT NULL"); } catch (_) {}
+  try { await db.execAsync("ALTER TABLE notes ADD COLUMN notificationId TEXT DEFAULT NULL"); } catch (_) {}
 }
-
-const TAB_ICONS = {
-  index:    ["list",        "list-outline"],
-  "add-note": ["add-circle", "add-circle-outline"],
-  settings: ["settings",   "settings-outline"],
-};
-
-function CustomTabBar({ state, navigation }) {
-  return (
-    <View style={styles.wrapper}>
-      <View style={styles.pill}>
-        {state.routes.map((route, index) => {
-          const isFocused = state.index === index;
-          const [activeIcon, inactiveIcon] = TAB_ICONS[route.name] ?? ["circle", "circle-outline"];
-
-          const onPress = () => {
-            const event = navigation.emit({
-              type: "tabPress",
-              target: route.key,
-              canPreventDefault: true,
-            });
-            if (!isFocused && !event.defaultPrevented) {
-              navigation.navigate(route.name);
-            }
-          };
-
-          return (
-            <TouchableOpacity
-              key={route.key}
-              onPress={onPress}
-              style={[styles.tab, isFocused && styles.activeTab]}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={isFocused ? activeIcon : inactiveIcon}
-                size={24}
-                color={isFocused ? "#fff" : "rgba(255,255,255,0.5)"}
-              />
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  wrapper: {
-    position: "absolute",
-    bottom: 32,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-  },
-  pill: {
-    flexDirection: "row",
-    backgroundColor: "#1a1a2e",
-    borderRadius: 40,
-    paddingHorizontal: 8,
-    paddingVertical: 10,
-    gap: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 10,
-  },
-  tab: {
-    paddingHorizontal: 22,
-    paddingVertical: 8,
-    borderRadius: 30,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  activeTab: {
-    backgroundColor: "rgba(255,255,255,0.15)",
-  },
-});
 
 export default function RootLayout() {
+  useEffect(() => {
+    setupNotificationChannel();
+    requestNotificationPermissions();
+
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const noteId = response.notification.request.content.data?.noteId;
+      if (noteId) router.push(`/note/${noteId}`);
+    });
+
+    return () => sub.remove();
+  }, []);
+
   return (
     <SQLiteProvider databaseName="notes.db" onInit={initDb}>
       <NotesProvider>
-        <Tabs
-          tabBar={(props) => <CustomTabBar {...props} />}
-          screenOptions={{ headerShown: false }}
-        >
-          <Tabs.Screen name="index" />
-          <Tabs.Screen name="add-note" />
-          <Tabs.Screen name="settings" />
-        </Tabs>
+        <ThemeProvider>
+          <Stack screenOptions={{ headerShown: false }} />
+        </ThemeProvider>
       </NotesProvider>
     </SQLiteProvider>
   );
