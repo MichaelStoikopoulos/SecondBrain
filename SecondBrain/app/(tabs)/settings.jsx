@@ -1,12 +1,14 @@
 import { View, Text, Switch, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../../context/ThemeContext";
 
 export default function Settings() {
   const { isDark, toggleTheme, theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = makeStyles(theme);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <Text style={styles.heading}>Settings</Text>
 
       <View style={styles.section}>

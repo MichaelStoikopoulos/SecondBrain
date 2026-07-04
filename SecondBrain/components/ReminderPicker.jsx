@@ -27,7 +27,7 @@ export default function ReminderPicker({ reminder, onSet, onCancel }) {
   };
 
   const handleAndroidChange = (event, selectedDate) => {
-    if (event.type === "dismissed") {
+    if (event.type === "dismissed" || !selectedDate) {
       setShowPicker(false);
       return;
     }
@@ -36,7 +36,11 @@ export default function ReminderPicker({ reminder, onSet, onCancel }) {
       setAndroidStep("time");
     } else {
       setShowPicker(false);
-      onSet(selectedDate);
+      // The time step doesn't enforce minimumDate, so a same-day pick could land in the past.
+      const finalDate = selectedDate.getTime() <= Date.now()
+        ? new Date(Date.now() + 60 * 1000)
+        : selectedDate;
+      onSet(finalDate);
     }
   };
 
@@ -46,7 +50,10 @@ export default function ReminderPicker({ reminder, onSet, onCancel }) {
 
   const handleIOSConfirm = () => {
     setShowPicker(false);
-    onSet(tempDate);
+    const finalDate = tempDate.getTime() <= Date.now()
+      ? new Date(Date.now() + 60 * 1000)
+      : tempDate;
+    onSet(finalDate);
   };
 
   if (reminder) {

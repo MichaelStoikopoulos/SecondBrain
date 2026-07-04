@@ -3,7 +3,8 @@ import { Platform } from "react-native";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
@@ -25,6 +26,24 @@ export const requestNotificationPermissions = async () => {
 };
 
 export const scheduleReminder = async ({ noteId, noteTitle, date }) => {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    throw new Error("Reminder date is invalid.");
+  }
+  if (date.getTime() <= Date.now()) {
+    throw new Error("Reminder date must be in the future.");
+  }
+
+  const { status } = await Notifications.getPermissionsAsync();
+  if (status !== "granted") {
+    const granted = await requestNotificationPermissions();
+    if (!granted) {
+      throw new Error("Notification permission was not granted.");
+    }
+  }
+
+  // Idempotent: guards against the channel not being ready yet (e.g. right after a fresh install).
+  await setupNotificationChannel();
+
   const id = await Notifications.scheduleNotificationAsync({
     content: {
       title: "📝 SecondBrain Reminder",

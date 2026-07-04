@@ -2,12 +2,15 @@ import { useCallback, useState } from "react";
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNotes } from "../../context/NotesContext";
 import { useTheme } from "../../context/ThemeContext";
+import DrawingCanvas from "../../components/DrawingCanvas";
 
 export default function Index() {
-  const { notes, loadNotes } = useNotes();
+  const { notes, loadNotes, togglePin } = useNotes();
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
   const styles = makeStyles(theme);
 
@@ -29,7 +32,7 @@ export default function Index() {
     : notes;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <Text style={styles.heading}>My Notes</Text>
 
       <View style={styles.searchWrapper}>
@@ -74,12 +77,41 @@ export default function Index() {
           keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => (
             <TouchableOpacity
-              style={styles.card}
+              style={[styles.card, item.pinned && { borderColor: theme.primary }]}
               activeOpacity={0.7}
               onPress={() => router.push(`/note/${item.id}`)}
             >
-              {item.title ? <Text style={styles.cardTitle}>{item.title}</Text> : null}
-              {item.content ? (
+              <TouchableOpacity
+                style={styles.pinButton}
+                onPress={() => togglePin(item.id)}
+                hitSlop={8}
+              >
+                <Ionicons
+                  name={item.pinned ? "pin" : "pin-outline"}
+                  size={18}
+                  color={item.pinned ? theme.primary : theme.textMuted}
+                />
+              </TouchableOpacity>
+
+              {item.title ? (
+                <Text style={[styles.cardTitle, styles.cardTitleWithPin]} numberOfLines={1}>
+                  {item.title}
+                </Text>
+              ) : null}
+              {item.mode === "drawing" ? (
+                item.drawing?.length > 0 && (
+                  <View style={styles.cardDrawing} pointerEvents="none">
+                    <DrawingCanvas strokes={item.drawing} editable={false} theme={theme} />
+                  </View>
+                )
+              ) : item.mode === "voice" ? (
+                item.audioUri && (
+                  <View style={styles.cardVoice}>
+                    <Ionicons name="mic" size={16} color={theme.textSub} />
+                    <Text style={styles.cardVoiceText}>Voice note</Text>
+                  </View>
+                )
+              ) : item.content ? (
                 <Text style={styles.cardContent} numberOfLines={3}>
                   {item.content}
                 </Text>
@@ -142,8 +174,19 @@ const makeStyles = (theme) =>
       borderWidth: 1,
       borderColor: theme.border,
     },
+    pinButton: {
+      position: "absolute",
+      top: 12,
+      right: 12,
+      zIndex: 1,
+      padding: 4,
+    },
     cardTitle: { fontSize: 16, fontWeight: "600", color: theme.text, marginBottom: 6 },
+    cardTitleWithPin: { paddingRight: 28 },
     cardContent: { fontSize: 14, color: theme.textSub, lineHeight: 20, marginBottom: 10 },
+    cardDrawing: { height: 90, marginBottom: 10 },
+    cardVoice: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
+    cardVoiceText: { fontSize: 14, color: theme.textSub },
     cardTags: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 8 },
     cardTag: {
       backgroundColor: theme.tagBg,
